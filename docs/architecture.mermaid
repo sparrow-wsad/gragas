@@ -1,0 +1,59 @@
+%% Fact memory architecture — state after ADR 0001–0005
+%% Colours: yellow = we build it, blue = Azure service,
+%% green = people, grey = existing / external
+
+flowchart TB
+
+  subgraph DEV["Developer — coding agent on a subscription"]
+    CC["Coding session<br/>knows the context: files, tests, decisions"]:::ext
+    PL["company-memory plugin<br/>/fact command · MCP client"]:::ours
+    CC --- PL
+  end
+
+  subgraph ACA["Azure Container Apps — one replica"]
+    APP["<b>Memory App</b> — single container<br/>· candidate intake<br/>· deduplication (queue: Procrastinate)<br/>· candidate review<br/>· hybrid search<br/>· MCP server<br/>· bot endpoint"]:::ours
+  end
+
+  subgraph PG["Azure Database for PostgreSQL + pgvector"]
+    FACTS[("facts · fact_versions<br/>source of truth + history")]:::azure
+    EMB[("fact_embeddings<br/>vectors, keyed by fact + model")]:::azure
+    Q[("job queue")]:::azure
+  end
+
+  AOAI["Azure OpenAI<br/>embeddings · answer generation"]:::azure
+
+  subgraph TEAMS["Microsoft Teams"]
+    USR["PM · sales · developer"]:::human
+    ABS["Azure Bot Service<br/>F0 tier"]:::azure
+    USR --- ABS
+  end
+
+  REV["Reviewer — PO / tech lead<br/>approve · reject · reclassify"]:::human
+  REPO["GitHub<br/>code · prompts · golden set"]:::ext
+
+  %% ---------- WRITE ----------
+  PL -- "/fact: finished candidate<br/>sentence + why + source<br/>(transcript never leaves the machine)" --> APP
+  APP -- "candidate + job in one transaction" --> FACTS
+  APP --- Q
+  APP -- "dedupe: look for similar facts" --> EMB
+
+  %% ---------- REVIEW ----------
+  APP -- "candidate list · Teams card" --> REV
+  REV -- "decision + rationale" --> APP
+  APP -- "status = approved, history entry" --> FACTS
+  APP -- "embed the approved fact" --> AOAI
+  APP -- "store vector" --> EMB
+
+  %% ---------- READ ----------
+  PL -- "agent asks mid-task (MCP)" --> APP
+  ABS -- "user question" --> APP
+  APP -- "hybrid search: vectors + full-text, RRF" --> EMB
+  APP -- "fact text and sources" --> FACTS
+  APP -- "answer citing fact id" --> AOAI
+
+  REPO -. "container image, prompts" .-> APP
+
+  classDef ours fill:#fde68a,stroke:#b45309,color:#111
+  classDef azure fill:#bfdbfe,stroke:#1d4ed8,color:#111
+  classDef human fill:#bbf7d0,stroke:#15803d,color:#111
+  classDef ext fill:#e5e7eb,stroke:#6b7280,color:#111

@@ -1,4 +1,4 @@
-%% Fact memory architecture — state after ADR 0001–0005
+%% Fact memory architecture — state after ADR 0001–0006
 %% Colours: yellow = we build it, blue = Azure service,
 %% green = people, grey = existing / external
 
@@ -11,7 +11,13 @@ flowchart TB
   end
 
   subgraph ACA["Azure Container Apps — one replica"]
-    APP["<b>Memory App</b> — single container<br/>· candidate intake<br/>· deduplication (queue: Procrastinate)<br/>· candidate review<br/>· hybrid search<br/>· MCP server<br/>· bot endpoint"]:::ours
+    APP["<b>Memory App</b> — single container"]:::ours
+    SEARCH["search function<br/>strategy by configuration:<br/>hybrid · full-text · tag list"]:::ours
+    ANSWER["answer endpoint<br/>composes a cited answer<br/>refuses when nothing matches"]:::ours
+    MCPS["MCP server<br/>memory_search · fact_get"]:::ours
+    APP --- SEARCH
+    APP --- ANSWER
+    APP --- MCPS
   end
 
   subgraph PG["Azure Database for PostgreSQL + pgvector"]
@@ -20,38 +26,40 @@ flowchart TB
     Q[("job queue")]:::azure
   end
 
-  AOAI["Azure OpenAI<br/>embeddings · answer generation"]:::azure
+  AOAI["Azure OpenAI<br/>embeddings · answer generation<br/>judge model for evaluation"]:::azure
 
-  subgraph TEAMS["Microsoft Teams"]
-    USR["PM · sales · developer"]:::human
-    ABS["Azure Bot Service<br/>F0 tier"]:::azure
-    USR --- ABS
-  end
-
-  REV["Reviewer — PO / tech lead<br/>approve · reject · reclassify"]:::human
+  REV["Reviewer — developer<br/>approve · reject · reclassify"]:::human
+  CARDS["Teams approval cards<br/>via Azure Bot Service<br/>(no Q&A — ADR 0006)"]:::azure
   REPO["GitHub<br/>code · prompts · golden set"]:::ext
+  EVAL["evaluation script<br/>recall@5 · groundedness<br/>answer relevance"]:::ours
 
   %% ---------- WRITE ----------
   PL -- "/fact: finished candidate<br/>sentence + why + source<br/>(transcript never leaves the machine)" --> APP
   APP -- "candidate + job in one transaction" --> FACTS
   APP --- Q
-  APP -- "dedupe: look for similar facts" --> EMB
+  APP -- "dedupe against existing facts" --> SEARCH
 
   %% ---------- REVIEW ----------
-  APP -- "candidate list · Teams card" --> REV
-  REV -- "decision + rationale" --> APP
+  APP -- "candidate list" --> REV
+  CARDS -- "approve / reject / reclassify" --> APP
+  REV --- CARDS
   APP -- "status = approved, history entry" --> FACTS
   APP -- "embed the approved fact" --> AOAI
   APP -- "store vector" --> EMB
 
   %% ---------- READ ----------
-  PL -- "agent asks mid-task (MCP)" --> APP
-  ABS -- "user question" --> APP
-  APP -- "hybrid search: vectors + full-text, RRF" --> EMB
-  APP -- "fact text and sources" --> FACTS
-  APP -- "answer citing fact id" --> AOAI
+  PL -- "agent asks mid-task, composes its own answer" --> MCPS
+  MCPS --> SEARCH
+  SEARCH -- "vectors + full text, RRF" --> EMB
+  SEARCH -- "fact text and sources" --> FACTS
+  ANSWER --> SEARCH
+  ANSWER -- "grounded answer citing fact ids" --> AOAI
 
-  REPO -. "container image, prompts" .-> APP
+  %% ---------- MEASUREMENT ----------
+  EVAL -. "golden set: every strategy, every change" .-> SEARCH
+  EVAL -. "judge model scores the answers" .-> ANSWER
+
+  REPO -. "container image, prompts, golden set" .-> APP
 
   classDef ours fill:#fde68a,stroke:#b45309,color:#111
   classDef azure fill:#bfdbfe,stroke:#1d4ed8,color:#111

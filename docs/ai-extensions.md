@@ -1,6 +1,8 @@
 # AI engineering extensions
 
-Pieces that can be added to this project to make it a full RAG system rather than just a search box. Ordered by when they are worth introducing. None of them are required for the thing to work — each is a separate skill to learn and a separate commit to show.
+Pieces that can be added to this project beyond what the plan already covers. Ordered by when they are worth introducing. Each is a separate skill to learn and a separate commit to show.
+
+**Note:** answer metrics and retrieval strategy comparison are no longer on this list as optional extras — they moved into `action-plan.md` as Phases 2 and 3 (see ADR 0006). What stays here is genuinely optional.
 
 ## First: two different things to measure
 
@@ -10,11 +12,11 @@ This distinction underpins the rest of the list.
 
 **Answer evaluation** answers: is what the bot wrote true, and does it follow from the facts it was given. You can retrieve the right fact and still produce a bad answer — the model adds something of its own, or ignores the document it was handed.
 
-The plan currently measures only the first. The second is usually what people mean by "testing the answers".
+Both are now in the plan: retrieval evaluation in Phase 1–2, answer evaluation in Phase 3.
 
-## Worth doing early
+## In the plan (kept here for reference)
 
-### Answer metrics
+### Answer metrics — Phase 3
 
 Three standard measures for RAG systems:
 
@@ -26,7 +28,7 @@ These are usually computed with an **LLM as a judge**: a second model receives t
 
 Tooling: **Ragas** has the most developed RAG-specific metrics. Alternatives: TruLens, DeepEval.
 
-### Tracing
+### Tracing — Phase 2
 
 Recording every model call: what went in, what came back, how long it took, what it cost, which prompt version was used. Without this, debugging an AI system is guesswork — you see a bad answer but cannot tell whether retrieval or generation failed.
 
@@ -34,7 +36,7 @@ Recording every model call: what went in, what came back, how long it took, what
 
 Common practice in 2026 is **two tools**: an evaluation framework run offline in CI, and an observability platform for what happens in production. They complement rather than replace each other.
 
-## Improves retrieval quality
+## Optional — improves retrieval quality
 
 ### Reranking
 
@@ -62,9 +64,9 @@ Rather than asking the model for JSON and hoping, enforce a schema. This removes
 
 ## Suggested learning order
 
-1. `recall@5` on the golden set — already in the plan, Phase 1.
-2. Tracing — the earlier it exists, the easier everything else is to debug.
-3. Answer metrics with a judge model — once the bot starts answering, Phase 3.
-4. Reranking — when `recall@5` stops improving through tuning.
+1. `recall@5` on the golden set — Phase 1.
+2. Tracing — Phase 2; the earlier it exists, the easier everything else is to debug.
+3. Reranking — Phase 2, when `recall@5` stops improving through tuning.
+4. Answer metrics with a judge model — Phase 3, as soon as anything is generated.
 5. Query rewriting — when it turns out people ask in different words than the facts use.
-6. Regression tests in CI — when there have been enough prompt changes that you stop remembering what worked.
+6. Regression tests in CI — Phase 7, when there have been enough prompt changes that you stop remembering what worked.

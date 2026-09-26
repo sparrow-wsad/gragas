@@ -1,14 +1,14 @@
 # Action plan
 
-Current as of the decisions in `adrs/` (0001–0005). Concept: `brief.md`. Diagram: `architecture.mermaid`. Optional extensions: `ai-extensions.md`.
+Current as of the decisions in `adrs/` (0001–0006). Concept: `brief.md`. Diagram: `architecture.mermaid`. Optional extras: `ai-extensions.md`.
 
-This is a learning project. The order below is chosen so that the AI engineering work comes first and the infrastructure work comes last — not the other way round.
+This is a learning project. The order below puts the AI engineering work first and the infrastructure work second — but everything built does get deployed, because running it properly is part of the goal.
 
 ## Governing principles
 
-**Local first.** Everything up to and including the write path runs on a laptop: Postgres in a container, a Python script, no cloud resources. The cloud is needed only when other people have to use it.
+**Local while iterating, deployed once it works.** Phases 0–4 run on a laptop, where a change takes seconds to test. Phase 5 puts the whole thing in Azure with a proper pipeline — not as an afterthought, as its own piece of work.
 
-**Measure every change.** No retrieval change is "done" until there is a before-and-after number from the golden set. Guessing whether something helped is the habit this project exists to break.
+**Measure every change.** No retrieval or answer change is finished until there is a before-and-after number from the golden set.
 
 **Read path before write path.** If a hundred hand-written facts produce no value, collecting them automatically will not either.
 
@@ -19,19 +19,17 @@ This is a learning project. The order below is chosen so that the AI engineering
 | Embedding model | fixes the vector column width in the schema |
 | Code ownership with the employer | the repository is public |
 
-The LLM choice can wait — it is not needed until answers are generated in Phase 6.
-
 ---
 
 # Part I — local
 
-Nothing in this part touches Azure. By the end of it the system is genuinely useful to one person: you.
+Fast iteration, no cloud resources. By the end the system is genuinely useful to one person and every core idea has been measured.
 
 ## Phase 0 — data and schema
 
 Postgres running locally in a container, with the `vector` extension. Schema: `facts`, `fact_versions`, `fact_embeddings`. Fifty to a hundred facts from one project, written by hand. A golden set of fifty questions, each with the fact `id` it should return.
 
-Write the golden set **before** building search. Written afterwards, it will unconsciously be shaped to match what already works.
+Write the golden set **before** building search. Written afterwards, it will unconsciously be shaped to match whatever already works.
 
 **You learn:** vector column types, why embeddings live in their own table, what a usable fact looks like.
 
@@ -39,93 +37,105 @@ Write the golden set **before** building search. Written afterwards, it will unc
 
 ## Phase 1 — first retrieval, first measurement
 
-Embed the facts. Implement **vector search only** — no full-text yet. Write the evaluation script that computes `recall@5` over the golden set.
+Embed the facts. Implement **vector search only** — no full text yet. Write the evaluation script that computes `recall@5` over the golden set.
 
-Resist adding hybrid search here. You want a deliberately imperfect baseline, so the next phase has something to improve on and a number to prove it.
+Resist adding hybrid search here. You want a deliberately imperfect baseline, so the next phase has something to improve and a number to prove it with.
 
-**You learn:** embeddings in practice, cosine distance, what `recall@5` actually measures, why a golden set is the foundation of everything else.
+**You learn:** embeddings in practice, cosine distance, what `recall@5` measures, why the golden set underpins everything else.
 
-**Done when:** the script prints a number. Whatever it is, that number is the baseline.
+**Done when:** the script prints a number. Whatever it is, that is the baseline.
 
-## Phase 2 — quality experiments
+## Phase 2 — retrieval experiments
 
-The core of the learning. Each step is one change, one measurement, one commit recording what happened.
+The core of the learning. One change, one measurement, one commit recording what happened.
 
 | Experiment | Question it answers |
 |---|---|
-| Add full-text search and RRF | how much does hybrid beat pure vector? |
+| Add full text and RRF | how much does hybrid beat pure vector? |
 | Swap the embedding model | is `large` worth the extra cost over `small`? |
-| Add reranking | biggest single jump in most RAG systems — is it here? |
+| Add reranking | usually the biggest single jump — is it here? |
 | Rewrite queries before searching | do people ask in different words than the facts use? |
 | Break the query on purpose | what does a bad retriever look like, so you recognise one later |
 
-Add **tracing** at the start of this phase (Langfuse, self-hosted locally). Every model call recorded: input, output, latency, cost. Without it you are debugging blind, and this is the phase with the most to debug.
+Then the comparison that matters most here (ADR 0006): **three search strategies side by side** — hybrid, full text only, tag-filtered list. All three behind one function selected by configuration, never commented out. Report quality against cost:
 
-**You learn:** hybrid retrieval, RRF, reranking, query rewriting, tracing — and the habit of not trusting an improvement you cannot measure.
+| Strategy | `recall@5` | tokens returned | cost per call |
+|---|---|---|---|
+| hybrid | ? | ~500 | embedding per query |
+| full text only | ? | ~2000 | none |
+| tag list | ? | ~15 000 | none |
 
-**Done when:** `recall@5 ≥ 0.6` and you can say, with numbers, which change bought which part of the gain.
+A thin server can win on `recall@5` simply by returning more, while eating the agent's context window. One number will not settle this.
 
-**This is the decision point for the whole project.** Failing to get there, or getting there and finding the answers still useless, means stopping and rethinking — not moving on.
+Add **tracing** at the start of this phase (Langfuse, self-hosted locally): every model call recorded with input, output, latency and cost. This is the phase with the most to debug.
 
-## Phase 3 — MCP, still local
+**You learn:** hybrid retrieval, RRF, reranking, query rewriting, tracing, and the habit of not trusting an improvement you cannot measure.
 
-An MCP server with two tools (`memory_search`, `fact_get`), wired into your own coding agent over stdio. Now the agent queries the fact base while you work.
+**Done when:** `recall@5 ≥ 0.6`, and you can say with numbers which change bought which part of the gain.
 
-This is where the project first pays for itself, with no cloud involved.
+**This is the decision point for the whole project.** Failing to get there, or getting there and finding the results useless, means stopping and rethinking — not moving on.
 
-**You learn:** the MCP protocol, tool design for agents, how retrieval quality feels in real use rather than in a metric.
+## Phase 3 — answers and their evaluation
 
-**Done when:** the agent reaches for facts unprompted during a real task and cites them.
+The second half of RAG. A function that takes a question, retrieves facts, and composes an answer citing fact `id`s — refusing with "I don't have that recorded" when nothing matches. Driven from the command line; no channel, no UI.
 
-## Phase 4 — write path
+Then measure it on the same golden set with a judge model: **groundedness** (does every sentence follow from the supplied facts) and **answer relevance** (does it answer the question asked).
 
-The `/fact` command in the plugin: the agent composes a fact from session context and posts a finished candidate. Deduplication against existing facts. A minimal review list — a plain HTML page is enough.
+Try to make it hallucinate on purpose — ask about something absent from the fact base and see whether it refuses or invents. That failure mode is the one worth recognising by sight.
 
-Still local. Still one user.
+**You learn:** prompt design for grounded citation and refusal, context assembly and ordering (including *lost in the middle*), LLM-as-judge, what a hallucination looks like in your own system.
 
-**You learn:** designing an agent command, structured output, deduplication by vector similarity, human-in-the-loop as a pattern.
+**Done when:** answers cite real fact `id`s, refuse when they should, and groundedness is measured rather than assumed.
 
-**Done when:** a week of your own work produces facts you would actually want to keep, and adding one takes seconds rather than interrupting the task.
+## Phase 4 — MCP and the write path
+
+An MCP server with `memory_search` and `fact_get`, over stdio, wired into your own coding agent. The `/fact` command: the agent composes a fact from session context and posts a finished candidate. Deduplication against existing facts. A minimal review list — a plain page is enough.
+
+This is where the project first pays for itself, still with nothing in the cloud.
+
+**You learn:** the MCP protocol, tool design for agents, structured output, deduplication by vector similarity, human-in-the-loop as a pattern.
+
+**Done when:** the agent reaches for facts unprompted during real work, and adding a fact takes seconds rather than interrupting the task.
 
 ---
 
-# Part II — cloud
+# Part II — deployment
 
-Only worth starting once Part I proves the idea. Everything here is software engineering, not AI engineering — useful, but not what you came for.
+Software engineering rather than AI engineering, and worth doing well — running the thing properly is part of what you want out of this.
 
-## Phase 5 — deployment
+## Phase 5 — deploy it
 
-Package the application into one container. Azure Database for PostgreSQL with `vector`. Azure Container Apps, one replica, scale to zero. Image in GHCR. Secrets in container configuration. Backup with a **tested restore** — after ADR 0002 there is no second copy of the facts.
+One container holding the API, the worker, the MCP server over HTTP and the answer endpoint. Azure Database for PostgreSQL with `vector`. Azure Container Apps, one replica, scale to zero. Image in GHCR. Secrets in container configuration. A build-and-deploy pipeline on push — the point is a repeatable deployment, not clicking through a portal. Backup with a **tested restore**: after ADR 0002 there is no second copy of the facts.
 
-**Done when:** two or three colleagues use it from their own machines over MCP.
+**You learn:** containerising a Python service, managed Postgres, scale-to-zero and cold starts, secret handling, CI/CD.
 
-## Phase 6 — Teams and answers
+**Done when:** two or three colleagues use it from their own machines over MCP, and a push to `main` deploys without manual steps.
 
-Teams Q&A bot over Azure Bot Service. Answer generation with citations. Review cards. This is the first point where the system *writes* rather than *retrieves*, so it is also where answer evaluation starts: **groundedness**, **answer relevance** (see `ai-extensions.md`).
+## Phase 6 — Teams approval cards
 
-Retrieval metrics do not cover this. A correct fact can still produce a wrong answer.
+The Teams bot in its reduced role (ADR 0006): it presents candidate facts for approve / reject / reclassify. It does not answer questions.
 
-**Done when:** three projects in the system, `recall@5 ≥ 0.7` on each, and bot answers are measurably grounded in the facts they cite.
+**Done when:** facts can be approved from Teams without opening a browser.
 
 ## Phase 7 — maturity
 
-Convention proposals for `.claude/rules/`. Regression tests for prompts in CI. Database decision once the free year ends (Azure Postgres or Neon). Automatic transcript collection — only if `/fact` proves insufficient (ADR 0005).
+Prompt regression tests in CI, gated on the golden set. Convention proposals for `.claude/rules/`. Database decision once the free year ends (Azure Postgres or Neon). Re-run the three-strategy comparison on a year of real usage. Conversational Q&A — only if anyone actually asks for it; the function already exists and needs only a channel.
 
 ---
 
 ## Measures
 
 - `recall@5` on the golden set ≥ 0.7 (0.6 to pass Phase 2)
+- groundedness measured on generated answers, not assumed
 - onboarding a new person: weeks → days
-- fewer "how does this work?" questions aimed at seniors
 - at most twenty candidates per project per week, at least half approved
 
 ## What to watch
 
-**Reaching for the cloud too early.** The pull to deploy something is strong, and deployment feels like progress. It is not, until Phase 2 produces a number worth deploying.
+**Deploying before there is anything worth deploying.** The pull is strong because deployment feels like progress. Phase 5 exists precisely so it happens properly — after Phase 2 has produced a number.
 
 **Whether people actually use `/fact`.** After ADR 0005 it is the only entry point for new facts. Noticeably fewer than twenty candidates per project per week calls for a lightweight hook reminder, computed locally with no model call — not a return to transcript collection.
 
 **Review fatigue.** If people stop clicking the cards, the system dies quietly and nobody reports it.
 
-**Cold start versus the Teams bot.** Scale-to-zero saves the entire compute cost, but the bot has a limited response window. To be measured in Phase 6; the workaround is a minimum replica during working hours.
+**Cold start versus the approval bot.** Scale-to-zero saves the entire compute cost, and with cards rather than chat the response window is far less tight than it would have been for Q&A.

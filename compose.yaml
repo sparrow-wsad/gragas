@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: gragas_db_container
+    environment:
+      POSTGRES_DB: gragas_db
+      POSTGRES_USER: gragas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgvector_gragas_data:/var/lib/postgresql/data
+volumes:
+  pgvector_gragas_data:

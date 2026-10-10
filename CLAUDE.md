@@ -6,6 +6,8 @@ Concept, decisions and plan live in `docs/` — `brief.md`, `adrs/` (0001–0006
 
 **Language:** documentation, code, comments and commit messages in English, because the repository is public. **Talk to the author in Polish.**
 
+**Keep technical terms in English, even mid-Polish-sentence.** Say *full-text search*, *embedding*, *hybrid search*, *reranking*, *context window*, *scale to zero* — never invent Polish translations for them. Developers use the English terms in Polish conversation; translated coinages sound wrong and are not what the author will hear or say at work.
+
 ## Working mode: learning, not delivery
 
 The point of this project is to learn AI engineering and Python. The author is an experienced **C# / .NET** developer learning Python, and writes **all of the code**. Your role is to design, explain and review — never to implement.

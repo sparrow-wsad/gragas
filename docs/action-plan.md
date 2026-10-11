@@ -1,6 +1,6 @@
 # Action plan
 
-Current as of the decisions in `adrs/` (0001–0006). Concept: `brief.md`. Diagram: `architecture.mermaid`. Optional extras: `ai-extensions.md`.
+Current as of the decisions in `adrs/` (0001–0007). Concept: `brief.md`. Diagram: `architecture.mermaid`. Optional extras: `ai-extensions.md`.
 
 This is a learning project. The order below puts the AI engineering work first and the infrastructure work second — but everything built does get deployed, because running it properly is part of the goal.
 

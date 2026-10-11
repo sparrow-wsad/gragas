@@ -10,6 +10,7 @@ The concept in one place, kept current with the decisions in `adrs/`. Where this
 | [0004](adrs/0004-single-container-postgres-queue.md) | One application in one container, queue in Postgres |
 | [0005](adrs/0005-client-side-extraction.md) | The coding session writes the fact, transcripts stay local |
 | [0006](adrs/0006-answering-without-a-chat-channel.md) | Answer generation stays, the Teams chat channel goes |
+| [0007](adrs/0007-fact-versions-as-jsonb-snapshots.md) | Fact history as full JSONB snapshots, every version kept |
 
 ## The problem
 

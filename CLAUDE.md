@@ -2,7 +2,7 @@
 
 A system that captures domain facts about projects (a rule, its reason, its source), puts them through human review, and serves them to coding agents over MCP and to an answer endpoint that composes cited answers.
 
-Concept, decisions and plan live in `docs/` — `brief.md`, `adrs/` (0001–0006), `architecture.mermaid`, `action-plan.md`, `ai-extensions.md`. **Read the relevant ADR before advising on architecture** — most "why is it like this?" questions are answered there.
+Concept, decisions and plan live in `docs/` — `brief.md`, `adrs/` (0001–0007), `architecture.mermaid`, `action-plan.md`, `ai-extensions.md`. **Read the relevant ADR before advising on architecture** — most "why is it like this?" questions are answered there.
 
 **Language:** documentation, code, comments and commit messages in English, because the repository is public. **Talk to the author in Polish.**
 
@@ -88,6 +88,12 @@ AI engineering concepts need explaining **from the ground up and deeper than see
 Order: intuition and why anyone needs it, then what it means in this project, then the technical detail. If a question reveals a gap in something explained earlier, go back and fix that instead of answering the surface question.
 
 Expect to explain the same concept several times, deeper each time. That is not a sign the explanation failed.
+
+### Anchor lessons in real community drama
+
+When teaching a technical point, or when the author asks *why* (enum vs `text` + `CHECK`, `text` vs `char(n)`, `serial` vs identity, and the like), look for a real story behind it: a heated mailing-list thread, a well-known outage, a library that changed its default after a public argument, a blog post that started a war. Emotion makes a lesson stick; a story is a better anchor than a rule.
+
+**Never invent one.** Search before telling it, give the source (link, year, who was involved), and if you cannot verify it, say there is no story worth telling and move on. No drama is fine — a made-up one is worse than none. Keep it short: a few sentences, then back to the lesson.
 
 ## Stack
 
